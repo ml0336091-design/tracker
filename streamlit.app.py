@@ -53,16 +53,16 @@ else:
     st.subheader("Trends")
 
     st.markdown("### Weight History")
-    weight_chart = df.set_index("Date")[["Weight (lbs)"]]
-    st.line_chart(weight_chart)
+    weight_table = df.set_index("Date")[["Weight (lbs)"]]
+    st.table(weight_table)
 
     st.markdown("### A1c (%)")
-    a1c_chart = df.set_index("Date")[["A1c (%)"]]
-    st.line_chart(a1c_chart)
+    a1c_table = df.set_index("Date")[["A1c (%)"]]
+    st.table(a1c_table)
 
     st.markdown("### Glucose (mL/dL)")
-    glucose_chart = df.set_index("Date")[["Glucose (mL/dL)"]]
-    st.line_chart(glucose_chart)
+    glucose_table = df.set_index("Date")[["Glucose (mL/dL)"]]
+    st.table(glucose_table)
 
 if st.button("Clear All Data"):
     st.session_state.data = pd.DataFrame(
