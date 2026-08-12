@@ -8,6 +8,22 @@ if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(
         columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mg/dL)", "Notes"]
     )
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Helper function to read current sheet data cleanly
+def fetch_data():
+    try:
+        data = conn.read(ttl=0)
+        data = data.dropna(how="all")
+        # Reverse the order so the newest dates show up first
+        return data.iloc[::-1]
+    except Exception:
+        return pd.DataFrame(
+            columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mg/dL)", "Notes"]
+        )
+
+# Fetch latest saved data from the cloud
+df = fetch_data()
 
 st.title("A1C and Weight Tracker")
 st.markdown("---")
