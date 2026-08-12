@@ -1,86 +1,89 @@
 import datetime
 import pandas as pd
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection  # <-- Make sure this line is present!
+from st_supabase_connection import SupabaseConnection
 
 st.set_page_config(page_title="Tracker", page_icon="📉", layout="centered")
 
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(
-        columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mg/dL)", "Notes"]
-    )
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Initialize Supabase connection
+supabase_conn = st.connection("supabase", type=SupabaseConnection)
 
-# Helper function to read current sheet data cleanly
-def fetch_data():
+
+def fetch_history():
     try:
-        data = conn.read(ttl=0)
-        data = data.dropna(how="all")
-        # Reverse the order so the newest dates show up first
-        return data.iloc[::-1]
-    except Exception:
-        return pd.DataFrame(
-            columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mg/dL)", "Notes"]
+        # Fetch all rows from the 'tracker' table sorted by newest first
+        response = (
+            supabase_conn.table("tracker")
+            .select("*")
+            .order("date", desc=True)
+            .execute()
         )
+        return pd.DataFrame(response.data)
+    except Exception:
+        return pd.DataFrame()
 
-# Fetch latest saved data from the cloud
-df = fetch_data()
 
 st.title("A1C and Weight Tracker")
 st.markdown("---")
 
-# Quick logging form
+# Logging form
 st.subheader("Add New Entry")
-with st.form("log_form" , clear_on_submit=True, enter_to_submit=False):
+with st.form("log_form", clear_on_submit=True, enter_to_submit=False):
     date = st.date_input("Date", datetime.date.today())
-    weight_value = st.number_input("Weight (lbs)", min_value=0.0, step=5.0, value=150.0)
-    glucose_value = st.number_input("Glucose (mL/dL)", min_value=0.0, step=1.0, value=100.0)
-    notes = st.text_input("Notes (optional)", placeholder="Fasting, post-meal, etc.")
+    weight_value = st.number_input(
+        "Weight (lbs)", min_value=0.0, step=1.0, value=150.0
+    )
+    glucose_value = st.number_input(
+        "Glucose (mg/dL)", min_value=0.0, step=1.0, value=100.0
+    )
+    notes = st.text_input(
+        "Notes (optional)", placeholder="Fasting, post-meal, etc."
+    )
 
     submitted = st.form_submit_button("Save Entry")
 
 if submitted:
+    a1c_value = round((glucose_value + 46.7) / 28.7, 1)
 
-    a1c_value = round((glucose_value + 46.7) / 28.7, 1 )
+    new_entry = {
+        "date": str(date),
+        "weight": weight_value,
+        "a1c": a1c_value,
+        "glucose": glucose_value,
+        "notes": notes,
+    }
 
-    new_row = pd.DataFrame({
-        "Date": [date],
-        "Weight (lbs)": [weight_value],
-        "A1c (%)": [a1c_value],
-        "Glucose (mL/dL)": [glucose_value],
-        "Notes": [notes],
-    })
-    st.session_state.data = pd.concat(
-    [st.session_state.data, new_row], ignore_index=True
-    )
-    st.success("Saved!")
+    # Insert row directly into Supabase database
+    supabase_conn.table("tracker").insert(new_entry).execute()
+    st.success("Saved successfully!")
+    st.rerun()
 
 st.markdown("---")
 
-# View history
+# History section
 st.subheader("History")
-df = st.session_state.data
+df = fetch_history()
 
 if df.empty:
     st.info("No entries yet. Add one above.")
 else:
-    # Show weights table and chart
-    st.markdown("---")
-    st.subheader("Trends")
-
-    st.markdown("### Weight History")
-    weight_table = df.set_index("Date")[["Weight (lbs)"]]
-    st.table(weight_table)
-
-    st.markdown("### A1c (%)")
-    a1c_table = df.set_index("Date")[["A1c (%)"]]
-    st.table(a1c_table)
-
-    st.markdown("### Glucose (mL/dL)")
-    glucose_table = df.set_index("Date")[["Glucose (mL/dL)"]]
-    st.table(glucose_table)
+    # Rename columns for clean display
+    display_df = df.rename(
+        columns={
+            "date": "Date",
+            "weight": "Weight (lbs)",
+            "a1c": "A1c (%)",
+            "glucose": "Glucose (mg/dL)",
+            "notes": "Notes",
+        }
+    )
+    st.dataframe(display_df, use_container_width=True)
 
 if st.button("Clear All Data"):
+    # Delete all records from the tracker table
+    supabase_conn.table("tracker").delete().neq("date", "").execute()
+    st.success("Cleared all records!")
+    st.rerun()
     st.session_state.data = pd.DataFrame(
     columns=["Date", "Weight (lbs)", "A1c (%)", "Notes"]
     )
