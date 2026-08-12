@@ -1,6 +1,7 @@
 import datetime
 import pandas as pd
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection  # <-- Make sure this line is present!
 
 st.set_page_config(page_title="Tracker", page_icon="📉", layout="centered")
 
