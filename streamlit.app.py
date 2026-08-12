@@ -4,47 +4,10 @@ import streamlit as st
 
 st.set_page_config(page_title="Tracker", page_icon="📉", layout="centered")
 
-# Simple storage in session
-try:
-    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-    REPO_OWNER = st.secrets["REPO_OWNER"]
-    REPO_NAME = st.secrets["REPO_NAME"]
-except Exception:
-    st.error("⚠️ GitHub Secrets are missing! Check the setup steps below.")
-    st.stop()
-
-FILE_PATH = "health_data.csv"
-URL = f"https://github.com{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
-HEADERS = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-
-def load_data_from_github():
-    """Fetches the CSV file from your GitHub repository."""
-    response = requests.get(URL, headers=HEADERS)
-    if response.status_code == 200:
-        # File exists, read its contents via the download URL
-        download_url = response.json()["download_url"]
-        return pd.read_csv(download_url)
-    else:
-        # File doesn't exist yet, return a blank dataframe
-        return pd.DataFrame(columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mL/dL)", "Notes"])
-
-def save_data_to_github(dataframe):
-    """Commits and pushes the updated CSV back to your GitHub repository."""
-    csv_content = dataframe.to_csv(index=False)
-    
-    # Check if file already exists to get its unique 'sha' ID (required by GitHub API to update files)
-    get_response = requests.get(URL, headers=HEADERS)
-    sha = get_response.json().get("sha") if get_response.status_code == 200 else None
-    
-    payload = {
-        "message": "Update health tracking data",
-        "content": requests.utils.base64.b64encode(csv_content.encode("utf-8")).decode("utf-8")
-    }
-    if sha:
-        payload["sha"] = sha
-        
-    put_response = requests.put(URL, headers=HEADERS, json=payload)
-    return put_response.status_code in [200, 201]
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame(
+        columns=["Date", "Weight (lbs)", "A1c (%)", "Glucose (mg/dL)", "Notes"]
+    )
 
 st.title("A1C and Weight Tracker")
 st.markdown("---")
